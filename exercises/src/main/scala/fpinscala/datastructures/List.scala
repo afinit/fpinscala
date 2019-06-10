@@ -81,9 +81,25 @@ object List { // `List` companion object. Contains functions for creating and wo
       case Cons(x, xs) => foldLeft(xs, f(z, x))(f)
     }
 
-  //def sumFold[Double](l: List[Double]): Double = foldLeft[Double, Double](l, 0.0)(_+_)
+  def sumFold(l: List[Double]): Double = foldLeft(l, 0.0)(_+_)
+  def productFold(l: List[Double]): Double = foldLeft(l, 1.0)(_*_)
+  def lengthFold[A](l: List[A]): Int = foldLeft(l, 0) ((acc, _) => 1 + acc)
 
-  //def map[A,B](l: List[A])(f: A => B): List[B] = ???
+  def reverse[A](l: List[A]): List[A] = foldLeft(l, Nil: List[A]) ((acc, a) => Cons(a, acc))
+
+  def foldLeftFromFR[A,B](l: List[A], z: B)(f: (B, A) => B) =
+    foldRight(l, (b: B) => b)((a,g) => b => g(f(b, a)))(z)
+
+  def foldRightFromFL[A,B](l: List[A], z: B)(f: (A, B) => B) =
+    foldLeft(l, (b: B) => b)((g,a) => b => g(f(a,b)))(z)
+
+  def appendFold[A](a1: List[A], a2: List[A]): List[A] = {
+    foldRight(a1, a2)(Cons(_,_))
+  }
+
+  def concatLists[A](lists: List[List[A]]): List[A] = {
+    foldRight(lists, Nil: List[A])((l, acc) => appendFold(l, acc))
+  }
 
   def add1(l: List[Int]): List[Int] = 
     l match {
@@ -97,4 +113,10 @@ object List { // `List` companion object. Contains functions for creating and wo
       case Cons(x, xs) => Cons(x.toString, dblToStringMap(xs))
     }
   }
+
+  def map[A,B](l: List[A])(f: A => B): List[B] = 
+    l match {
+      case Nil => Nil
+      case Cons(x, xs) => Cons(f(x), map(xs)(f))
+    }
 }
