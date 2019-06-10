@@ -8,6 +8,10 @@ which may be `Nil` or another `Cons`.
 case class Cons[+A](head: A, tail: List[A]) extends List[A]
 
 object List { // `List` companion object. Contains functions for creating and working with lists.
+  val l1 = List(1,2,3,4,5,6)
+  val l2 = List(11,22,33,44,55,66)
+  val l3 = List(1,3,5,7,9)
+
   def sum(ints: List[Int]): Int = ints match { // A function that uses pattern matching to add up a list of integers
     case Nil => 0 // The sum of the empty list is 0.
     case Cons(x,xs) => x + sum(xs) // The sum of a list starting with `x` is `x` plus the sum of the rest of the list.
@@ -97,9 +101,8 @@ object List { // `List` companion object. Contains functions for creating and wo
     foldRight(a1, a2)(Cons(_,_))
   }
 
-  def concatLists[A](lists: List[List[A]]): List[A] = {
-    foldRight(lists, Nil: List[A])((l, acc) => appendFold(l, acc))
-  }
+  def concatLists[A](lists: List[List[A]]): List[A] =
+    foldRight(lists, Nil: List[A])(appendFold)
 
   def add1(l: List[Int]): List[Int] = 
     l match {
@@ -118,5 +121,27 @@ object List { // `List` companion object. Contains functions for creating and wo
     l match {
       case Nil => Nil
       case Cons(x, xs) => Cons(f(x), map(xs)(f))
+    }
+  
+  def filter[A](l: List[A])(p: A => Boolean): List[A] = 
+    l match {
+      case Nil => Nil
+      case Cons(x, xs) if p(x) => Cons(x, filter(xs)(p))
+      case Cons(x, xs) => filter(xs)(p)
+    }
+
+  def flatMap[A,B](l: List[A])(f: A => List[B]): List[B] =
+    l match {
+      case Nil => Nil
+      case Cons(x, xs) => appendFold(f(x), flatMap(xs)(f))
+    }
+
+  def filterFlatMap[A](l: List[A])(p: A => Boolean): List[A] =
+    flatMap(l)(x => if (p(x)) List(x) else Nil)
+
+  def zipMap[A,B](l1: List[A], l2: List[A])(f: (A,A) => B): List[B] = 
+    (l1, l2) match {
+      case (_,_) if l1 == Nil || l2 == Nil => Nil
+      case (Cons(x, xs), Cons(y, ys)) => Cons(f(x,y), zipMap(xs,ys)(f))
     }
 }
