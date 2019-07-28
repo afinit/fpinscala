@@ -29,6 +29,8 @@ object Par {
       def call = a(es).get
     })
 
+  def lazyUnit[A](a: => A): Par[A] = fork(unit(a))
+
   def map[A,B](pa: Par[A])(f: A => B): Par[B] = 
     map2(pa, unit(()))((a,_) => f(a))
 
@@ -45,6 +47,23 @@ object Par {
       if (run(es)(cond).get) t(es) // Notice we are blocking on the result of `cond`.
       else f(es)
 
+  def sequence[A](ps: List[Par[A]]): Par[List[A]] =
+    if (ps.isEmpty) unit(Nil)
+    else map2(ps.head, sequence(ps.tail))(_ :: _)
+
+  def asyncF[A,B](f: A => B): A => Par[B] =
+    a => lazyUnit(f(a))
+
+  def parFilter[A](ps: List[A])(f: A => Boolean): Par[List[A]] =
+    if (ps.isEmpty) lazyUnit(List.empty[A])
+    else
+      map2(
+        lazyUnit(f(ps.head)),
+        parFilter(ps.tail)(f)
+      )(
+        (predicate, tail) => if (predicate) ps.head :: tail else tail
+      )
+
   /* Gives us infix syntax for `Par`. */
   implicit def toParOps[A](p: Par[A]): ParOps[A] = new ParOps(p)
 
@@ -56,6 +75,9 @@ object Par {
 
 object Examples {
   import Par._
+  import java.util.concurrent.{Executors, ExecutorService}
+  val pool: ExecutorService = Executors.newFixedThreadPool(4)
+
   def sum(ints: IndexedSeq[Int]): Int = // `IndexedSeq` is a superclass of random-access sequences like `Vector` in the standard library. Unlike lists, these sequences provide an efficient `splitAt` method for dividing them into two parts at a particular index.
     if (ints.size <= 1)
       ints.headOption getOrElse 0 // `headOption` is a method defined on all collections in Scala. We saw this function in chapter 3.
@@ -63,5 +85,17 @@ object Examples {
       val (l,r) = ints.splitAt(ints.length/2) // Divide the sequence in half using the `splitAt` function.
       sum(l) + sum(r) // Recursively sum both halves and add the results together.
     }
+
+  val ps1 = List(Par.unit(5), Par.unit(6), Par.unit(7))
+  val ps1Run = Par.run(pool)(Par.sequence(ps1))
+  val xs = List(1,2,3,4,5,6)
+
+  // This demonstrates that parFilter is indeed running in parallel
+  val xsFiltered = Par.parFilter(xs)(x => {
+    Thread.sleep(new scala.util.Random().nextInt(1500))
+    println(x)
+    x % 2 == 0
+  })
+  // Par.run(pool)(xsFiltered)
 
 }
