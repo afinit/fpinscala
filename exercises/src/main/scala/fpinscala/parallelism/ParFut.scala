@@ -30,6 +30,9 @@ object ParFut {
   def map[A,B](pa: ParFut[A])(f: A => B): ParFut[B] = 
     map2(pa, unit(()))((a,_) => f(a))
 
+  def flatMap[A,B](pa: ParFut[A])(f: A => ParFut[B]): ParFut[B] =
+    ec => run(ec)(pa).flatMap(f(_)(ec))(ec)
+
   def sortPar(parList: ParFut[List[Int]]) = map(parList)(_.sorted)
 
   // NOTE:: BLOCKING
@@ -43,10 +46,18 @@ object ParFut {
     ec => fa(ec)
 
   // NOTE:: BLOCKING
-  def choice[A](timeout: Duration = defaultTimeout)(cond: ParFut[Boolean])(t: ParFut[A], f: ParFut[A]): ParFut[A] =
+  def choice[A](cond: ParFut[Boolean])(t: ParFut[A], f: ParFut[A]): ParFut[A] =
     ec => 
-      if (Await.result(run(ec)(cond), timeout)) t(ec) // Notice we are blocking on the result of `cond`.
-      else f(ec)
+      run(ec)(cond).flatMap( c => if (c) t(ec) else f(ec) )(ec)
+
+  def choiceN[A](n: ParFut[Int])(choices: List[ParFut[A]]): ParFut[A] =
+    ec => run(ec)(n).flatMap(i => run(ec)(choices(i)))(ec)
+
+  def choice2[A](cond: ParFut[Boolean])(t: ParFut[A], f: ParFut[A]): ParFut[A] =
+    choiceN(map(cond)(b => if (b) 1 else 0))(List(f, t))
+
+  def choiceNFM[A](n: ParFut[Int])(choices: List[ParFut[A]]): ParFut[A] =
+    flatMap(n)(idx => choices(idx))
 
   def sequence[A](ps: List[ParFut[A]]): ParFut[List[A]] =
     if (ps.isEmpty) unit(Nil)
