@@ -30,8 +30,17 @@ object ParFut {
   def map[A,B](pa: ParFut[A])(f: A => B): ParFut[B] = 
     map2(pa, unit(()))((a,_) => f(a))
 
+  def join[A](a: ParFut[ParFut[A]]): ParFut[A] =
+    ec => run(ec)(a).flatMap(run(ec))(ec)
+
+  def joinFlatMap[A](a: ParFut[ParFut[A]]): ParFut[A] =
+    flatMap(a)(x => x)
+
   def flatMap[A,B](pa: ParFut[A])(f: A => ParFut[B]): ParFut[B] =
     ec => run(ec)(pa).flatMap(f(_)(ec))(ec)
+
+  def flatMapJoin[A,B](pa: ParFut[A])(f: A => ParFut[B]): ParFut[B] =
+    join(map(pa)(f))
 
   def sortPar(parList: ParFut[List[Int]]) = map(parList)(_.sorted)
 
@@ -58,6 +67,12 @@ object ParFut {
 
   def choiceNFM[A](n: ParFut[Int])(choices: List[ParFut[A]]): ParFut[A] =
     flatMap(n)(idx => choices(idx))
+
+  def choiceMap[K,V](key: ParFut[K])(choices: Map[K,ParFut[V]]): ParFut[V] =
+    flatMap(key)(choices)
+
+  def chooser[A,B](pa: ParFut[A])(choices: A => ParFut[B]): ParFut[B] =
+    flatMap(pa)(choices)
 
   def sequence[A](ps: List[ParFut[A]]): ParFut[List[A]] =
     if (ps.isEmpty) unit(Nil)
