@@ -21,17 +21,35 @@ object Monoid {
     val zero = Nil
   }
 
-  val intAddition: Monoid[Int] = ???
+  val intAddition: Monoid[Int] = new Monoid[Int] {
+    def op(a1: Int, a2: Int) = a1 + a2
+    val zero = 0
+  }
 
-  val intMultiplication: Monoid[Int] = ???
+  val intMultiplication: Monoid[Int] = new Monoid[Int] {
+    def op(a1: Int, a2: Int) = a1 + a2
+    val zero = 1
+  }
 
-  val booleanOr: Monoid[Boolean] = ???
+  val booleanOr: Monoid[Boolean] = new Monoid[Boolean] {
+    def op(a1: Boolean, a2: Boolean) = a1 || a2
+    val zero = false
+  }
 
-  val booleanAnd: Monoid[Boolean] = ???
+  val booleanAnd: Monoid[Boolean] = new Monoid[Boolean] {
+    def op(a1: Boolean, a2: Boolean) = a1 && a2
+    val zero = true
+  }
 
-  def optionMonoid[A]: Monoid[Option[A]] = ???
+  def optionMonoid[A]: Monoid[Option[A]] = new Monoid[Option[A]] {
+    def op(a1: Option[A], a2: Option[A]) = a1.orElse(a2)
+    val zero = None
+  }
 
-  def endoMonoid[A]: Monoid[A => A] = ???
+  def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
+    def op(a1: A => A, a2: A => A): A => A = a2 compose a1
+    val zero = (a: A) => a
+  }
 
   // TODO: Placeholder for `Prop`. Remove once you have implemented the `Prop`
   // data type from Part 2.
@@ -42,53 +60,55 @@ object Monoid {
 
   import fpinscala.testing._
   import Prop._
-  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = ???
+//  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = ???
 
-  def trimMonoid(s: String): Monoid[String] = ???
+ // def trimMonoid(s: String): Monoid[String] = ???
 
-  def concatenate[A](as: List[A], m: Monoid[A]): A =
-    ???
+  //def concatenate[A](as: List[A], m: Monoid[A]): A =
+   // ???
 
   def foldMap[A, B](as: List[A], m: Monoid[B])(f: A => B): B =
-    ???
+    as.foldLeft(m.zero){ case (acc, a) => m.op(acc, f(a)) }
 
   def foldRight[A, B](as: List[A])(z: B)(f: (A, B) => B): B =
-    ???
+    foldMap(
+      as, endoMonoid[B]
+    )(
+      (a: A) => (b: B) => f(a,b)
+    )(z)
 
-  def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B =
-    ???
+  def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B = {
+    val curried = (a: A) => (b: B) => f(b,a)
+    val endoMonoidDual = new Monoid[B => B] {
+      def op(b1: B => B, b2: B => B) = endoMonoid[B].op(b2,b1)
+      val zero = endoMonoid[B].zero
+    }
+    foldMap(as, endoMonoidDual)(curried)(z)
+  }
 
-  def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B =
-    ???
+  //def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B = ???
 
-  def ordered(ints: IndexedSeq[Int]): Boolean =
-    ???
+  //def ordered(ints: IndexedSeq[Int]): Boolean = ???
 
   sealed trait WC
   case class Stub(chars: String) extends WC
   case class Part(lStub: String, words: Int, rStub: String) extends WC
 
-  def par[A](m: Monoid[A]): Monoid[Par[A]] = 
-    ???
+  //def par[A](m: Monoid[A]): Monoid[Par[A]] = ???
 
-  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = 
-    ???
+  //def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = ???
 
-  val wcMonoid: Monoid[WC] = ???
+  //val wcMonoid: Monoid[WC] = ???
 
-  def count(s: String): Int = ???
+  //def count(s: String): Int = ???
 
-  def productMonoid[A,B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] =
-    ???
+  //def productMonoid[A,B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] = ???
 
-  def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] =
-    ???
+  //def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] = ???
 
-  def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] =
-    ???
+  //def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] = ???
 
-  def bag[A](as: IndexedSeq[A]): Map[A, Int] =
-    ???
+  //def bag[A](as: IndexedSeq[A]): Map[A, Int] = ???
 }
 
 trait Foldable[F[_]] {
