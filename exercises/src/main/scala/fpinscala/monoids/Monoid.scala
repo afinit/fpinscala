@@ -51,6 +51,11 @@ object Monoid {
     val zero = (a: A) => a
   }
 
+  def dual[A](m: Monoid[A]): Monoid[A] = new Monoid[A] {
+    def op(x: A, y: A): A = m.op(y, x)
+    val zero = m.zero
+  }
+
   // TODO: Placeholder for `Prop`. Remove once you have implemented the `Prop`
   // data type from Part 2.
   trait Prop {}
@@ -68,23 +73,13 @@ object Monoid {
    // ???
 
   def foldMap[A, B](as: List[A], m: Monoid[B])(f: A => B): B =
-    as.foldLeft(m.zero){ case (acc, a) => m.op(acc, f(a)) }
+    as.foldRight(m.zero){ case (a, acc) => m.op(acc, f(a)) }
 
   def foldRight[A, B](as: List[A])(z: B)(f: (A, B) => B): B =
-    foldMap(
-      as, endoMonoid[B]
-    )(
-      (a: A) => (b: B) => f(a,b)
-    )(z)
+    foldMap(as, endoMonoid[B])(a => b => f(a,b))(z)
 
-  def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B = {
-    val curried = (a: A) => (b: B) => f(b,a)
-    val endoMonoidDual = new Monoid[B => B] {
-      def op(b1: B => B, b2: B => B) = endoMonoid[B].op(b2,b1)
-      val zero = endoMonoid[B].zero
-    }
-    foldMap(as, endoMonoidDual)(curried)(z)
-  }
+  def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B =
+    foldMap(as, dual(endoMonoid[B]))(a => b => f(b,a))(z)
 
   //def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B = ???
 
