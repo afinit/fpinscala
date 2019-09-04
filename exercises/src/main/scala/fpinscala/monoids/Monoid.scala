@@ -1,7 +1,7 @@
 package fpinscala.monoids
 
-import fpinscala.parallelism.Nonblocking._
-import fpinscala.parallelism.Nonblocking.Par.toParOps // infix syntax for `Par.map`, `Par.flatMap`, etc
+import fpinscala.parallelism.ParFut._
+// import fpinscala.parallelism.ParFut.toParOps // infix syntax for `Par.map`, `Par.flatMap`, etc
 import language.higherKinds
 
 trait Monoid[A] {
@@ -73,7 +73,7 @@ object Monoid {
    // ???
 
   def foldMap[A, B](as: List[A], m: Monoid[B])(f: A => B): B =
-    as.foldRight(m.zero){ case (a, acc) => m.op(acc, f(a)) }
+    as.foldRight(m.zero){ case (a, acc) => m.op(f(a), acc) }
 
   def foldRight[A, B](as: List[A])(z: B)(f: (A, B) => B): B =
     foldMap(as, endoMonoid[B])(a => b => f(a,b))(z)
@@ -81,17 +81,64 @@ object Monoid {
   def foldLeft[A, B](as: List[A])(z: B)(f: (B, A) => B): B =
     foldMap(as, dual(endoMonoid[B]))(a => b => f(b,a))(z)
 
-  //def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B = ???
+  def foldMapV[A, B](as: IndexedSeq[A], m: Monoid[B])(f: A => B): B =
+    if (as.length == 1) f(as.head)
+    else if (as.isEmpty) m.zero
+    else {
+      val (half1, half2) = as.splitAt(as.length / 2)
+      m.op(foldMapV(half1, m)(f), foldMapV(half2, m)(f))
+    }
 
-  //def ordered(ints: IndexedSeq[Int]): Boolean = ???
+  def ordered(ints: IndexedSeq[Int]): Boolean = {
+    sealed trait Ordered
+
+    case class Ascending(min: Int, max: Int) extends Ordered
+    case class Descending(max: Int, min: Int) extends Ordered
+    case class Neutral(num: Int) extends Ordered
+    case object Zero extends Ordered
+    case object NotOrdered extends Ordered
+
+    val OrderedMonoid = new Monoid[Ordered] {
+      def op(a1: Ordered, a2: Ordered) = (a1, a2) match {
+        case (NotOrdered, _) => NotOrdered
+        case (_, NotOrdered) => NotOrdered
+        case (Zero, a2) => a2
+        case (a1, Zero) => a1
+        case (Neutral(num1), Neutral(num2)) => 
+          if (num1 < num2) Ascending(num1, num2)
+          else if (num1 > num2) Descending(num1, num2)
+          else Neutral(num1)
+        case (Neutral(num), Ascending(min, max)) => if (num <= min) Ascending(num, max) else NotOrdered
+        case (Ascending(min, max), Neutral(num)) => if (max <= num) Ascending(min, num) else NotOrdered
+        case (Neutral(num), Descending(max, min)) => if (num >= max) Descending(num, min) else NotOrdered
+        case (Descending(max, min), Neutral(num)) => if (num <= min) Descending(max, num) else NotOrdered
+        case (Ascending(_,_), Descending(_,_)) => NotOrdered
+        case (Descending(_,_), Ascending(_,_)) => NotOrdered
+        case (Ascending(mn1, mx1), Ascending(mn2,mx2)) => if (mn2 >= mx1) Ascending(mn1, mx2) else NotOrdered
+        case (Descending(mx1, mn1), Descending(mx2, mn2)) => if (mn1 >= mx2) Descending(mx1, mn2) else NotOrdered
+      }
+
+      val zero = Zero
+    }
+    foldMap(ints.toList, OrderedMonoid)(Neutral) match {
+      case NotOrdered => false
+      case _ => true
+    }
+  }
 
   sealed trait WC
   case class Stub(chars: String) extends WC
   case class Part(lStub: String, words: Int, rStub: String) extends WC
 
-  //def par[A](m: Monoid[A]): Monoid[Par[A]] = ???
+  def par[A](m: Monoid[A]): Monoid[ParFut[A]] =
+    new Monoid[ParFut[A]] {
+      def op(a1Fut: ParFut[A], a2Fut: ParFut[A]) =
+        map2(a1Fut, a2Fut)(m.op(_,_))
+      val zero = unit(m.zero)
+    }
 
-  //def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = ???
+  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): ParFut[B] =
+    foldMapV(v, par(m))(unit[B] _ compose f)
 
   //val wcMonoid: Monoid[WC] = ???
 
