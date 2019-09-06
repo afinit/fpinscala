@@ -140,9 +140,26 @@ object Monoid {
   def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): ParFut[B] =
     foldMapV(v, par(m))(unit[B] _ compose f)
 
-  //val wcMonoid: Monoid[WC] = ???
+  val wcMonoid: Monoid[WC] = new Monoid[WC] {
+    def op(w1: WC, w2: WC): WC = (w1, w2) match {
+      case (Stub(c1), Stub(c2)) => Stub(c1 + c2)
+      case (Stub(c1), Part(l2, count, r2)) => Part(c1 + l2, count, r2)
+      case (Part(l1, count, r1), Stub(c2)) => Part(l1, count, r1 + c2)
+      case (Part(l1, count1, r1), Part(l2, count2, r2)) => 
+        Part(l1, count1 + (if ((r1 + l2).isEmpty) 0 else 1) + count2, r2)
+    }
+    val zero = Stub("")
+  }
 
-  //def count(s: String): Int = ???
+  def charToWC(c: Char): WC = 
+    if (Vector(" ","\t","\n").contains(c)) Part("", 0, "") 
+    else Stub(c.toString)
+
+  def count(s: String): Int =
+    foldMapV(s.toIndexedSeq, wcMonoid)(charToWC) match {
+      case Stub(_) => 0
+      case Part(_, count, _) => count
+    }
 
   //def productMonoid[A,B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] = ???
 
