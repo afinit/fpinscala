@@ -213,7 +213,7 @@ object IndexedSeqFoldable extends Foldable[IndexedSeq] {
   override def foldLeft[A, B](as: IndexedSeq[A])(z: B)(f: (B, A) => B) =
     as match {
       case xs if xs.isEmpty => z
-      case _ => foldLeft(as.tail)(z)(f)
+      case _ => foldLeft(as.tail)(f(z,as.head))(f)
     }
   override def foldMap[A, B](as: IndexedSeq[A])(f: A => B)(mb: Monoid[B]): B =
     if (as.isEmpty) mb.zero
@@ -257,9 +257,17 @@ object TreeFoldable extends Foldable[Tree] {
       case _ => mb.zero
     }
   override def foldLeft[A, B](as: Tree[A])(z: B)(f: (B, A) => B) =
-    foldMap(as)(a => b => f(b,a))(dual(endoMonoid[B]))(z)
+    as match {
+      case Leaf(a) => f(z,a)
+      case Branch(left, right) => 
+        foldLeft(right)(foldLeft(left)(z)(f))(f)
+    }
   override def foldRight[A, B](as: Tree[A])(z: B)(f: (A, B) => B) =
-    foldMap(as)(f.curried)(endoMonoid[B])(z)
+    as match {
+      case Leaf(a) => f(a,z)
+      case Branch(left, right) =>
+        foldRight(left)(foldRight(right)(z)(f))(f)
+    }
 }
 
 object OptionFoldable extends Foldable[Option] {
