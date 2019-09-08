@@ -169,11 +169,28 @@ object Monoid {
       val zero = (A.zero, B.zero)
     }
 
-  //def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] = ???
+  def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] =
+    new Monoid[A => B] {
+      def op(a1: A => B, a2: A => B): A => B =
+        a => B.op(a1(a), a2(a))
+      val zero: A => B = _ => B.zero
+    }
 
-  //def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] = ???
+  def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] =
+    new Monoid[Map[K,V]] {
+      val zero = Map.empty[K,V]
+      def op(m1: Map[K,V], m2: Map[K,V]): Map[K,V] =
+        (m1.keySet ++ m2.keySet).foldLeft(zero) {
+          case (accMap, k) =>
+            accMap
+              .updated(k, V.op(m1.getOrElse(k, V.zero), m2.getOrElse(k, V.zero)))
+        }
+    }
 
-  //def bag[A](as: IndexedSeq[A]): Map[A, Int] = ???
+  private def aToMap[A](a: A) = Map(a -> 1)
+  def bag[A](as: IndexedSeq[A]): Map[A, Int] =
+    IndexedSeqFoldable.foldMap(as)(aToMap)(mapMergeMonoid(intAddition))
+
 }
 
 trait Foldable[F[_]] {
