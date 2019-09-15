@@ -5,7 +5,7 @@ import parsing._
 import testing._
 import parallelism._
 import state._
-import parallelism.Par._
+import parallelism.ParFut._
 import language.higherKinds
 
 
@@ -62,17 +62,45 @@ object Monad {
       ma flatMap f
   }
 
-  val parMonad: Monad[Par] = ???
+  val parMonad: Monad[ParFut] = new Monad[ParFut] {
+    def unit[A](a: => A): ParFut[A] = ParFut.unit(a)
+    def flatMap[A,B](ma: ParFut[A])(f: A => ParFut[B]): ParFut[B] =
+      ParFut.flatMap(ma)(f)
+  }
 
-  def parserMonad[P[+_]](p: Parsers[P]): Monad[P] = ???
+  def parserMonad[P[+_]](p: Parsers[P]): Monad[P] = new Monad[P] {
+    def unit[A](a: => A): P[A] = p.succeed(a)
+    def flatMap[A,B](ma: P[A])(f: A => P[B]): P[B] = p.flatMap(ma)(f)
+  }
 
-  val optionMonad: Monad[Option] = ???
+  val optionMonad: Monad[Option] = new Monad[Option] {
+    def unit[A](a: => A): Option[A] = Some(a)
+    def flatMap[A,B](ma: Option[A])(f: A => Option[B]): Option[B] =
+      ma.flatMap(f)
+  }
 
-  val streamMonad: Monad[Stream] = ???
+  val streamMonad: Monad[Stream] = new Monad[Stream] {
+    def unit[A](a: => A): Stream[A] = Stream(a)
+    def flatMap[A,B](ma: Stream[A])(f: A => Stream[B]): Stream[B] =
+      ma.flatMap(f)
+  }
 
-  val listMonad: Monad[List] = ???
+  val listMonad: Monad[List] = new Monad[List] {
+    def unit[A](a: => A): List[A] = List(a)
+    def flatMap[A,B](ma: List[A])(f: A => List[B]): List[B] =
+      ma.flatMap(f)
+  }
 
-  def stateMonad[S] = ???
+  trait StateMonad[S] extends Monad[({type T[A] = State[S,A]})#T] {
+    def unit[A](a: => A): State[S,A]
+    def flatMap[A,B](ma: State[S,A])(f: A => State[S,B]): State[S,B]
+  }
+
+  def stateMonad[S]: StateMonad[S] = new StateMonad[S] {
+    def unit[A](a: => A): State[S,A] = State((s: S) => (a, s))
+    def flatMap[A,B](ma: State[S,A])(f: A => State[S,B]): State[S,B] =
+      ma.flatMap(f)
+  }
 
   val idMonad: Monad[Id] = ???
 
