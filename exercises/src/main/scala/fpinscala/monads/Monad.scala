@@ -37,17 +37,12 @@ trait Monad[M[_]] extends Functor[M] {
     flatMap(ma)(a => map(mb)(b => f(a, b)))
 
   def sequence[A](lma: List[M[A]]): M[List[A]] = {
-    val revSeq = lma.foldLeft(unit(List.empty[A])) {
-      case (monadList, monad) => flatMap(monadList)(list => map(monad)(a => a :: list))
-    }
+    val revSeq = lma.foldLeft(unit(List.empty[A])) { case (mlst, m) => map2(m, mlst)(_ :: _) }
     map(revSeq)(_.reverse)
   }
 
   def traverse[A,B](la: List[A])(f: A => M[B]): M[List[B]] = {
-    val revSeq = la.foldLeft(unit(List.empty[B])) {
-      case (acc, a) =>
-        flatMap(acc)(list => map(f(a))(b => b :: list))
-    }
+    val revSeq = la.foldLeft(unit(List.empty[B])) { case (acc, a) => map2(f(a), acc)(_ :: _) }
     map(revSeq)(_.reverse)
   }
 
