@@ -46,17 +46,31 @@ trait Monad[M[_]] extends Functor[M] {
     map(revSeq)(_.reverse)
   }
 
-  def replicateM[A](n: Int, ma: M[A]): M[List[A]] = ???
+  def replicateM[A](n: Int, ma: M[A]): M[List[A]] =
+    traverse((0 until n).toList)(_ => ma)
 
-  def compose[A,B,C](f: A => M[B], g: B => M[C]): A => M[C] = ???
+  def filterM[A](ms: List[A])(f: A => M[Boolean]): M[List[A]] =
+    ms match {
+      case Nil => unit(Nil)
+      case a :: t => flatMap(f(a)) { b =>
+        if (b) map(filterM(t)(f))( a :: _ )
+        else filterM(t)(f)
+      }
+    }
+
+  def compose[A,B,C](f: A => M[B], g: B => M[C]): A => M[C] =
+    a => flatMap(f(a))(g)
 
   // Implement in terms of `compose`:
-  def _flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] = ???
+  def _flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] =
+    compose((_: Unit) => ma, f)(())
 
-  def join[A](mma: M[M[A]]): M[A] = ???
+  def join[A](mma: M[M[A]]): M[A] =
+    flatMap(mma)(identity)
 
   // Implement in terms of `join`:
-  def __flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] = ???
+  def __flatMap[A,B](ma: M[A])(f: A => M[B]): M[B] =
+    join(map(ma)(f))
 }
 
 case class Reader[R, A](run: R => A)
