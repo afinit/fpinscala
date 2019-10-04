@@ -36,14 +36,15 @@ trait Monad[M[_]] extends Functor[M] {
   def map2[A,B,C](ma: M[A], mb: M[B])(f: (A, B) => C): M[C] =
     flatMap(ma)(a => map(mb)(b => f(a, b)))
 
-  def sequence[A](lma: List[M[A]]): M[List[A]] = {
-    val revSeq = lma.foldLeft(unit(List.empty[A])) { case (mlst, m) => map2(m, mlst)(_ :: _) }
-    map(revSeq)(_.reverse)
-  }
+  def sequence[A](lma: List[M[A]]): M[List[A]] =
+    lma.foldRight(unit(List.empty[A])) {
+      case (m, mlst) => map2(m, mlst)(_ :: _)
+    }
 
   def traverse[A,B](la: List[A])(f: A => M[B]): M[List[B]] = {
-    val revSeq = la.foldLeft(unit(List.empty[B])) { case (acc, a) => map2(f(a), acc)(_ :: _) }
-    map(revSeq)(_.reverse)
+    la.foldRight(unit(List.empty[B])) {
+      case (a, acc) => map2(f(a), acc)(_ :: _)
+    }
   }
 
   def replicateM[A](n: Int, ma: M[A]): M[List[A]] =
@@ -122,14 +123,18 @@ object Monad {
       ma.flatMap(f)
   }
 
-  val idMonad: Monad[Id] = ???
+  val idMonad: Monad[Id] = new Monad[Id] {
+    def unit[A](a: => A): Id[A] = Id(a)
+    def flatMap[A,B](ma: Id[A])(f: A => Id[B]): Id[B] =
+      ma.flatMap(f)
+  }
 
-  def readerMonad[R] = ???
+  //def readerMonad[R] = ???
 }
 
 case class Id[A](value: A) {
-  def map[B](f: A => B): Id[B] = ???
-  def flatMap[B](f: A => Id[B]): Id[B] = ???
+  def map[B](f: A => B): Id[B] = Id(f(value))
+  def flatMap[B](f: A => Id[B]): Id[B] = f(value)
 }
 
 object Reader {
