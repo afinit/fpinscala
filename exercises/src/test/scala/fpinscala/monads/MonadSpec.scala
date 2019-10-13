@@ -117,5 +117,27 @@ class MonadSpec extends FunSpec with Matchers {
       stateMonad[(Int,Int)]
         .compose(stateSum, stateMultiplier)(4).run((5,8)) shouldBe(156.0,(13,21))
     }
+
+    it("should properly use the idMonad") {
+      import Monad.idMonad
+
+      val id1 = Id("Monad ")
+      val id2 = Id("Life")
+
+      val fmfmResult = idMonad.flatMap(id1) {
+        a => idMonad.flatMap(id2) {
+          b => Id(a + b)
+        }
+      }
+
+      val fmmResult = idMonad.flatMap(id1) {
+        a => idMonad.map(id2) {
+          b => a + b
+        }
+      }
+
+      fmfmResult shouldBe fmmResult
+      fmfmResult shouldBe Id("Monad Life")
+    }
   }
 }
