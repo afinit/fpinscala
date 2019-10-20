@@ -9,6 +9,8 @@ import monoids._
 import language.higherKinds
 import language.implicitConversions
 
+import java.util.Date
+
 trait Applicative[F[_]] extends Functor[F] {
 
   def map2[A,B,C](fa: F[A], fb: F[B])(f: (A, B) => C): F[C] =
@@ -46,13 +48,13 @@ trait Applicative[F[_]] extends Functor[F] {
   )(f: (A,B,C,D) => E): F[E] =
     apply( apply( apply( apply(unit(f.curried))(fa) )(fb) )(fc) )(fd)
 
-  def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] = ???
+  //def factor[A,B](fa: F[A], fb: F[B]): F[(A,B)] = ???
 
-  def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = ???
+  //def product[G[_]](G: Applicative[G]): Applicative[({type f[x] = (F[x], G[x])})#f] = ???
 
-  def compose[G[_]](G: Applicative[G]): Applicative[({type f[x] = F[G[x]]})#f] = ???
+  //def compose[G[_]](G: Applicative[G]): Applicative[({type f[x] = F[G[x]]})#f] = ???
 
-  def sequenceMap[K,V](ofa: Map[K,F[V]]): F[Map[K,V]] = ???
+  //def sequenceMap[K,V](ofa: Map[K,F[V]]): F[Map[K,V]] = ???
 }
 
 case class Tree[+A](head: A, tail: List[Tree[A]])
@@ -70,7 +72,15 @@ trait Monad[F[_]] extends Applicative[F] {
 }
 
 object Monad {
-  def eitherMonad[E]: Monad[({type f[x] = Either[E, x]})#f] = ???
+  def eitherMonad[E]: Monad[({type f[x] = Either[E, x]})#f] = 
+    new Monad[({type f[x] = Either[E, x]})#f] {
+      def unit[A](a: => A): Either[E,A] = Right(a)
+      override def flatMap[A,B](ma: Either[E,A])(f: A => Either[E,B]): Either[E,B] =
+        ma match {
+          case Right(a) => f(a)
+          case Left(e) => Left(e)
+        }
+    }
 
   def stateMonad[S] = new Monad[({type f[x] = State[S, x]})#f] {
     def unit[A](a: => A): State[S, A] = State(s => (a, s))
@@ -84,11 +94,45 @@ object Monad {
 
 sealed trait Validation[+E, +A]
 
-case class Failure[E](head: E, tail: Vector[E])
+case class Failure[E](head: E, tail: Vector[E] = Vector.empty)
   extends Validation[E, Nothing]
 
 case class Success[A](a: A) extends Validation[Nothing, A]
 
+object Validation {
+  def validName(name: String): Validation[String, String] =
+    if (name != "") Success(name)
+    else Failure("Name cannot be empty")
+
+  def validBirthdate(birthdate: String): Validation[String, Date] =
+    try {
+      import java.text._
+      Success((new SimpleDateFormat("yyyy-MM-dd")).parse(birthdate))
+    } catch {
+      case _: Throwable => Failure("Birthdate must be in the form yyyy-MM-dd")
+    }
+
+  def validPhone(phoneNumber: String): Validation[String, String] =
+    if (phoneNumber.matches("[0-9]{10}")) Success(phoneNumber)
+    else Failure("Phone number must be 10 digits")
+
+  case class WebForm(
+    name: String,
+    birthdate: Date,
+    phoneNumber: String
+  )
+
+  def validWebForm(
+    name: String,
+    birthdate: String,
+    phoneNumber: String
+  ): Validation[String, WebForm] =
+    Applicative.validationApplicative.map3(
+      validName(name),
+      validBirthdate(birthdate),
+      validPhone(phoneNumber)
+    )(WebForm(_,_,_))
+}
 
 object Applicative {
 
@@ -102,7 +146,17 @@ object Applicative {
       a zip b map f.tupled
   }
 
-  def validationApplicative[E]: Applicative[({type f[x] = Validation[E,x]})#f] = ???
+  def validationApplicative[E]: Applicative[({type f[x] = Validation[E,x]})#f] =
+    new Applicative[({type f[x] = Validation[E,x]})#f] {
+      def unit[A](a: => A): Validation[E,A] = Success(a)
+      override def map2[A,B,C](fa: Validation[E,A], fb: Validation[E,B])(f: (A,B) => C): Validation[E,C] =
+        (fa, fb) match {
+          case (Success(a), Success(b)) => Success(f(a,b))
+          case (Failure(ha, ta), Failure(hb, tb)) => Failure(ha, ta ++ (hb +: tb))
+          case (Failure(ha,ta), _) => Failure(ha,ta)
+          case (_, Failure(hb,tb)) => Failure(hb,tb)
+        }
+    }
 
   type Const[A, B] = A
 
